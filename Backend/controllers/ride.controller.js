@@ -25,16 +25,21 @@ const create = async (req, res) => {
             return;
         }
 
-        const captainInRadius = await getCaptainInTheRadius(pickupCoordinates.ltd, pickupCoordinates.lng, 10);        
+        const captainInRadius = await getCaptainInTheRadius(pickupCoordinates.ltd, pickupCoordinates.lng, 20);        
         ride.otp = "";
 
-        const rideWithUser= await rideModel.findOne({_id:ride._id}).populate('user')
-        captainInRadius.map(captain => {          
-            sendMessageToSocketId(captain.socketId, {
-                event: 'new-ride',
-                data: rideWithUser
+        const rideWithUser = await rideModel.findOne({_id: ride._id}).populate('user');
+        console.log(`Alerting ${captainInRadius?.length || 0} captains within 20km radius`);
+        if (captainInRadius && captainInRadius.length > 0) {
+            captainInRadius.forEach(captain => {          
+                if (captain.socketId) {
+                    sendMessageToSocketId(captain.socketId, {
+                        event: 'new-ride',
+                        data: rideWithUser
+                    });
+                }
             });
-        });
+        }
 
     } catch (error) {
         console.error(error);

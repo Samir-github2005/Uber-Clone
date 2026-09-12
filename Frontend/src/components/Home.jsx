@@ -1,7 +1,8 @@
-import React, { useRef, useState, useEffect, useContext } from 'react'
-import { useGSAP } from '@gsap/react'
-import gsap from 'gsap'
-import { FaArrowDownLong } from "react-icons/fa6";
+import React, { useRef, useState, useEffect, useContext } from 'react';
+import { useGSAP } from '@gsap/react';
+import gsap from 'gsap';
+import { FaCircle, FaSquare, FaArrowDown, FaArrowRight } from 'react-icons/fa6';
+import { IoLogOutOutline, IoPersonCircleOutline } from 'react-icons/io5';
 import LocationSearchPanel from '../pages/LocationSearchPanel';
 import VehiclePanel from '../pages/VehiclePanel';
 import ConfirmedRide from '../pages/ConfirmedRide';
@@ -10,99 +11,109 @@ import WaitingForDriver from '../pages/WaitingForDriver';
 import axios from 'axios';
 import { UserDataContext } from '../context/UserContext';
 import { SocketContext } from '../context/SocketContext';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import LiveTracking from './LiveTracking';
 
 const Home = () => {
-  const [pickup, setpickup] = useState('')
-  const [destination, setDestination] = useState('')
-  const [panelOpen, setPanelOpen] = useState(false)
-  const panelRef = useRef(null)
-  const panelCloseREf = useRef(null)
-  const vehicleFoundRef = useRef(null)
-  const waitingForDriverRef = useRef(null)
-  const vehiclePanelRef = useRef(null)
-  const confirmedRideRef = useRef(null)
-  const [vehiclePanel, setVehiclePanel] = useState(false)
-  const [confirmRidePanel, setConfirmRidePanel] = useState(false)
-  const [vehicleFound, setVehicleFound] = useState(false)
-  const [waitingForDriver, setWaitingForDriver] = useState(false)
-  const [suggestions, setSuggestions] = useState([]) // Initialize as an array
-  const [activeField, setActiveField] = useState(null)
-  const [fare, setFare] = useState({})
-  const [vehicleType, setVehicleType] = useState(null)
-  const [ride, setRide] = useState(null)
+  const [pickup, setpickup] = useState('');
+  const [destination, setDestination] = useState('');
+  const [panelOpen, setPanelOpen] = useState(false);
+  const panelRef = useRef(null);
+  const panelCloseRef = useRef(null);
+  const vehicleFoundRef = useRef(null);
+  const waitingForDriverRef = useRef(null);
+  const vehiclePanelRef = useRef(null);
+  const confirmedRideRef = useRef(null);
+
+  const [vehiclePanel, setVehiclePanel] = useState(false);
+  const [confirmRidePanel, setConfirmRidePanel] = useState(false);
+  const [vehicleFound, setVehicleFound] = useState(false);
+  const [waitingForDriver, setWaitingForDriver] = useState(false);
+  const [suggestions, setSuggestions] = useState([]);
+  const [activeField, setActiveField] = useState(null);
+  const [fare, setFare] = useState({});
+  const [fareLoading, setFareLoading] = useState(false);
+  const [vehicleType, setVehicleType] = useState(null);
+  const [ride, setRide] = useState(null);
   const [userLocation, setUserLocation] = useState({ lng: 0, lat: 0 });
 
-  const { socket } = useContext(SocketContext)
-  const { user } = useContext(UserDataContext)
-  const navigate = useNavigate()
+  const { socket } = useContext(SocketContext);
+  const { user } = useContext(UserDataContext);
+  const navigate = useNavigate();
 
   useEffect(() => {
+    if (!socket || !user?._id) return;
+
     socket.emit('join', { userType: 'user', userId: user._id });
 
-    socket.on('ride-confirmed', ride => {
+    socket.on('ride-confirmed', (ride) => {
       setWaitingForDriver(true);
       setVehicleFound(false);
-      setRide(ride)
+      setRide(ride);
     });
 
-    socket.on('ride-started', ride => {
+    socket.on('ride-started', (ride) => {
       setWaitingForDriver(false);
       navigate('/riding', { state: { ride } });
     });
 
     const updateLocation = () => {
       if (navigator.geolocation) {
-        navigator.geolocation.getCurrentPosition(position => {
+        navigator.geolocation.getCurrentPosition((position) => {
           const location = {
             lng: position.coords.longitude,
-            lat: position.coords.latitude
+            lat: position.coords.latitude,
           };
           setUserLocation(location);
           socket.emit('update-location-user', {
             userId: user._id,
-            location
+            location,
           });
-          console.log(user._id, position.coords.latitude, position.coords.longitude)
-        })
+        });
       }
-    }
-    const locationInterval = setInterval(updateLocation, 10000)
-    updateLocation()
+    };
+
+    const locationInterval = setInterval(updateLocation, 10000);
+    updateLocation();
 
     return () => {
       socket.off('ride-confirmed');
       socket.off('ride-started');
       clearInterval(locationInterval);
     };
-  }, [socket, user._id, navigate]);
+  }, [socket, user?._id, navigate]);
 
-  const submitHandler = async (e) => {
-    e.preventDefault();
-    setVehiclePanel(true);
-    setPanelOpen(false);
+  const fetchFare = async (p, d) => {
+    setFareLoading(true);
     try {
       const res = await axios.get(`${import.meta.env.VITE_BASE_URL}/rides/get-fare`, {
-        params: {
-          pickup, destination
-        },
+        params: { pickup: p, destination: d },
         headers: {
-          Authorization: `Bearer ${localStorage.getItem('token')}`
-        }
-      })
-      setFare(res.data)
+          Authorization: `Bearer ${localStorage.getItem('userToken')}`,
+        },
+      });
+      setFare(res.data);
     } catch (err) {
-      console.log(err);
+      console.error('Error getting fare:', err);
+    } finally {
+      setFareLoading(false);
     }
+  };
 
-  }
+  const submitHandler = async (e) => {
+    if (e) e.preventDefault();
+    if (!pickup || !destination) return;
+
+    setVehiclePanel(true);
+    setPanelOpen(false);
+    await fetchFare(pickup, destination);
+  };
 
   const handleInputChange = async (value, field) => {
     if (field === 'pickup') {
-      setpickup(value)
+      setpickup(value);
     } else {
-      setDestination(value)
+      setDestination(value);
     }
 
     if (value.length >= 3) {
@@ -110,10 +121,10 @@ const Home = () => {
         const res = await axios.get(`${import.meta.env.VITE_BASE_URL}/maps/get-suggestions`, {
           params: { input: value },
           headers: {
-            Authorization: `Bearer ${localStorage.getItem('token')}`
-          }
+            Authorization: `Bearer ${localStorage.getItem('userToken')}`,
+          },
         });
-        setSuggestions(res.data); // Ensure suggestions are set from response data
+        setSuggestions(res.data || []);
         setPanelOpen(true);
         setActiveField(field);
       } catch (error) {
@@ -122,201 +133,308 @@ const Home = () => {
     } else {
       setSuggestions([]);
     }
-  }
+  };
 
   const handleSuggestionSelect = (suggestion) => {
     if (activeField === 'pickup') {
-      setpickup(suggestion); // Ensure the correct property is used
+      setpickup(suggestion);
       setActiveField('destination');
-      setDestination('');
+      setSuggestions([]);
     } else {
-      setDestination(suggestion); // Ensure the correct property is used
+      setDestination(suggestion);
       setPanelOpen(false);
+      setSuggestions([]);
       if (pickup) {
         setVehiclePanel(true);
+        fetchFare(pickup, suggestion);
       }
     }
-  }
+  };
 
   const handleInputFocus = (field) => {
-    setPanelOpen(true);
     setActiveField(field);
-    if (field === 'destination') {
-      setSuggestions([]); // Clear previous suggestions when focusing on destination
+    setPanelOpen(true);
+    const currVal = field === 'pickup' ? pickup : destination;
+    if (currVal && currVal.length >= 3) {
+      handleInputChange(currVal, field);
     }
   };
 
   async function createRide() {
     try {
-      const res = await axios.post(`${import.meta.env.VITE_BASE_URL}/rides/create`, {
-        pickup, destination, vehicleType
-      }, {
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem('token')}`
+      await axios.post(
+        `${import.meta.env.VITE_BASE_URL}/rides/create`,
+        { pickup, destination, vehicleType },
+        {
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem('userToken')}`,
+          },
         }
-      })
+      );
     } catch (error) {
-      console.log(error);
+      console.error('Create ride error:', error);
     }
   }
 
-  useGSAP(function () {
+  useGSAP(() => {
     if (panelOpen) {
       gsap.to(panelRef.current, {
-        height: '70%',
-        opacity: 1
-      })
-      gsap.to(panelCloseREf.current, {
-        opacity: 1
-      })
+        height: '60vh',
+        opacity: 1,
+        duration: 0.35,
+        ease: 'power2.out',
+      });
+      gsap.to(panelCloseRef.current, {
+        opacity: 1,
+        display: 'flex',
+        duration: 0.2,
+      });
     } else {
       gsap.to(panelRef.current, {
-        height: '0%',
-        opacity: 0
-      })
-      gsap.to(panelCloseREf.current, {
-        opacity: 0
-      })
+        height: '0vh',
+        opacity: 0,
+        duration: 0.3,
+        ease: 'power2.in',
+      });
+      gsap.to(panelCloseRef.current, {
+        opacity: 0,
+        display: 'none',
+        duration: 0.2,
+      });
     }
+  }, [panelOpen]);
 
-  }, [panelOpen])
-
-  useGSAP(function () {
+  useGSAP(() => {
     if (vehiclePanel) {
       gsap.to(vehiclePanelRef.current, {
-        transform: 'translateY(0)'
-      })
+        transform: 'translateY(0%)',
+        duration: 0.4,
+        ease: 'power3.out',
+      });
     } else {
       gsap.to(vehiclePanelRef.current, {
-        transform: 'translateY(100%)'
-      })
+        transform: 'translateY(100%)',
+        duration: 0.3,
+        ease: 'power3.in',
+      });
     }
-  }, [vehiclePanel])
+  }, [vehiclePanel]);
 
-  useGSAP(function () {
+  useGSAP(() => {
     if (confirmRidePanel) {
       gsap.to(confirmedRideRef.current, {
-        transform: 'translateY(0)'
-      })
+        transform: 'translateY(0%)',
+        duration: 0.4,
+        ease: 'power3.out',
+      });
     } else {
       gsap.to(confirmedRideRef.current, {
-        transform: 'translateY(100%)'
-      })
+        transform: 'translateY(100%)',
+        duration: 0.3,
+        ease: 'power3.in',
+      });
     }
-  }, [confirmRidePanel])
+  }, [confirmRidePanel]);
 
-  useGSAP(function () {
+  useGSAP(() => {
     if (vehicleFound) {
       gsap.to(vehicleFoundRef.current, {
-        transform: 'translateY(0)'
-      })
+        transform: 'translateY(0%)',
+        duration: 0.4,
+        ease: 'power3.out',
+      });
     } else {
       gsap.to(vehicleFoundRef.current, {
-        transform: 'translateY(100%)'
-      })
+        transform: 'translateY(100%)',
+        duration: 0.3,
+        ease: 'power3.in',
+      });
     }
-  }, [vehicleFound])
+  }, [vehicleFound]);
 
-  useGSAP(function () {
+  useGSAP(() => {
     if (waitingForDriver) {
       gsap.to(waitingForDriverRef.current, {
-        transform: 'translateY(0)'
-      })
+        transform: 'translateY(0%)',
+        duration: 0.4,
+        ease: 'power3.out',
+      });
     } else {
       gsap.to(waitingForDriverRef.current, {
-        transform: 'translateY(100%)'
-      })
+        transform: 'translateY(100%)',
+        duration: 0.3,
+        ease: 'power3.in',
+      });
     }
-  }, [waitingForDriver])
-
+  }, [waitingForDriver]);
 
   return (
-    <div className="h-screen relative overflow-hidden">
-      {/* Uber Logo */}
-      <img className="w-16 absolute left-5 top-5"
-        src="https://download.logo.wine/logo/Uber/Uber-Logo.wine.png"
-        alt="Uber Logo" />
+    <div className="h-screen w-screen relative overflow-hidden bg-gray-100 font-sans">
+      {/* Top Floating Bar */}
+      <div className="fixed top-0 left-0 right-0 z-20 p-4 flex items-center justify-between pointer-events-none">
+        <div className="pointer-events-auto bg-white/90 backdrop-blur-md px-4 py-2 rounded-2xl shadow-lg border border-white/50 flex items-center gap-3">
+          <Link to="/" className="text-2xl font-extrabold tracking-tighter text-black">
+            Uber
+          </Link>
+          <div className="h-4 w-px bg-gray-300" />
+          <div className="flex items-center gap-1.5 text-xs font-semibold text-gray-700">
+            <IoPersonCircleOutline className="text-base text-gray-500" />
+            <span>{user?.fullName?.firstName || 'Rider'}</span>
+          </div>
+        </div>
 
-      {/* Background Image */}
+        <Link
+          to="/user/logout"
+          className="pointer-events-auto w-11 h-11 bg-white/90 backdrop-blur-md rounded-2xl shadow-lg border border-white/50 flex items-center justify-center text-gray-700 hover:text-red-600 hover:bg-white active:scale-95 transition"
+          title="Logout"
+        >
+          <IoLogOutOutline className="text-xl" />
+        </Link>
+      </div>
+
+      {/* Map Background Layer */}
       <div className="h-screen w-screen">
         <LiveTracking userLocation={userLocation} />
       </div>
 
-      {/* Panel for Form */}
-      <div className="flex flex-col justify-end h-screen absolute top-0 w-full">
-        <div className="h-[30%] p-6 bg-white rounded-t-2xl shadow-lg">
-          {/* Panel Close Icon */}
-          <h5
-            ref={panelCloseREf}
-            onClick={() => setPanelOpen(false)}
-            className="opacity-0 absolute right-6 top-6 text-2xl cursor-pointer transition-transform transform hover:scale-110"
-          >
-            <FaArrowDownLong />
-          </h5>
+      {/* Bottom Search Drawer */}
+      <div className="fixed bottom-0 left-0 right-0 z-30 flex flex-col justify-end pointer-events-none">
+        <div className="pointer-events-auto bg-white rounded-t-3xl shadow-2xl border-t border-gray-100 p-5 sm:p-6 transition-all duration-300 max-w-xl mx-auto w-full">
+          {/* Header & Close Handle */}
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-2xl font-extrabold text-gray-900 tracking-tight">
+              Where to?
+            </h3>
+            <button
+              ref={panelCloseRef}
+              type="button"
+              onClick={() => setPanelOpen(false)}
+              className="hidden w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 text-gray-600 items-center justify-center transition"
+            >
+              <FaArrowDown className="text-xs" />
+            </button>
+          </div>
 
-          {/* Form Heading */}
-          <h4 className="text-2xl font-semibold text-gray-800">Find a trip</h4>
+          {/* Location Inputs with Route Line */}
+          <form onSubmit={submitHandler} className="relative space-y-3">
+            {/* Visual Route Line */}
+            <div className="absolute left-4 top-4.5 bottom-16 flex flex-col items-center pointer-events-none z-10">
+              <FaCircle className="text-[9px] text-emerald-600" />
+              <div className="w-0.5 flex-1 bg-gray-300 my-1 border-dashed" />
+              <FaSquare className="text-[9px] text-black" />
+            </div>
 
-          {/* Form */}
-          <form
-            onSubmit={(e) => {
-              submitHandler(e);
-            }}
-          >
-            <input
-              type="text"
-              value={pickup}
-              onChange={(e) => handleInputChange(e.target.value, 'pickup')}
-              onFocus={() => handleInputFocus('pickup')}
-              className="bg-gray-200 w-full mt-5 px-4 py-3 text-lg rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-400"
-              placeholder="Add pickup Location"
-            />
-            <input
-              type="text"
-              value={destination}
-              onChange={(e) => handleInputChange(e.target.value, 'destination')}
-              onFocus={() => handleInputFocus('destination')}
-              className="bg-gray-200 w-full mt-3 px-4 py-3 text-lg rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-400"
-              placeholder="Add dropoff Location"
-            />
-            <button className='bg-black text-white rounded-md w-full p-3'>Find Trip</button>
+            <div className="relative">
+              <input
+                type="text"
+                value={pickup}
+                onChange={(e) => handleInputChange(e.target.value, 'pickup')}
+                onFocus={() => handleInputFocus('pickup')}
+                placeholder="Enter pickup location"
+                className="w-full pl-10 pr-4 py-3.5 bg-gray-100 hover:bg-gray-150 focus:bg-white border border-transparent focus:border-black rounded-2xl text-sm font-medium text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-black transition shadow-inner"
+              />
+            </div>
+
+            <div className="relative">
+              <input
+                type="text"
+                value={destination}
+                onChange={(e) => handleInputChange(e.target.value, 'destination')}
+                onFocus={() => handleInputFocus('destination')}
+                placeholder="Where to?"
+                className="w-full pl-10 pr-4 py-3.5 bg-gray-100 hover:bg-gray-150 focus:bg-white border border-transparent focus:border-black rounded-2xl text-sm font-medium text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-black transition shadow-inner"
+              />
+            </div>
+
+            <button
+              type="submit"
+              disabled={fareLoading}
+              className="w-full mt-2 bg-black hover:bg-gray-900 text-white font-bold py-3.5 px-4 rounded-2xl active:scale-[0.98] transition flex items-center justify-center gap-2 shadow-lg disabled:opacity-70"
+            >
+              {fareLoading ? (
+                <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+              ) : (
+                <>
+                  <span>Search Rides</span>
+                  <FaArrowRight className="text-xs" />
+                </>
+              )}
+            </button>
           </form>
+
+          {/* Autocomplete Suggestions Panel */}
+          <div
+            ref={panelRef}
+            className="h-0 opacity-0 overflow-hidden transition-all bg-white"
+          >
+            <LocationSearchPanel
+              suggestions={suggestions}
+              activeField={activeField}
+              onSelect={handleSuggestionSelect}
+            />
+          </div>
         </div>
-
-        {/* Location Search Panel */}
-        <div
-          ref={panelRef}
-          className="bg-white h-0 overflow-hidden transition-all duration-300 mt-6"
-        >
-          <LocationSearchPanel
-            suggestions={suggestions}
-            activeField={activeField}
-            onSelect={handleSuggestionSelect}
-          />
-        </div>
       </div>
 
-      {/* Vehicle Selection Panel */}
-      <div ref={vehiclePanelRef} className="fixed translate-y-full z-10 w-full bottom-0 bg-white p-6 shadow-lg">
-        <VehiclePanel setVehicleType={setVehicleType} fare={fare} setConfirmRidePanel={setConfirmRidePanel} setVehiclePanel={setVehiclePanel} />
+      {/* Vehicle Selection Drawer */}
+      <div
+        ref={vehiclePanelRef}
+        style={{ transform: 'translateY(100%)' }}
+        className="fixed z-40 w-full bottom-0 bg-white rounded-t-3xl p-5 sm:p-6 shadow-2xl border-t border-gray-100 max-w-xl left-0 right-0 mx-auto"
+      >
+        <VehiclePanel
+          setVehicleType={setVehicleType}
+          fare={fare}
+          setConfirmRidePanel={setConfirmRidePanel}
+          setVehiclePanel={setVehiclePanel}
+        />
       </div>
 
-      {/* Ride Selection Panel */}
-      <div ref={confirmedRideRef} className="fixed translate-y-full z-10 w-full bottom-0 bg-white p-6 shadow-lg">
-        <ConfirmedRide pickup={pickup} destination={destination} fare={fare} vehicleType={vehicleType} createRide={createRide} setConfirmRidePanel={setConfirmRidePanel} setVehicleFound={setVehicleFound} />
+      {/* Confirm Ride Drawer */}
+      <div
+        ref={confirmedRideRef}
+        style={{ transform: 'translateY(100%)' }}
+        className="fixed z-40 w-full bottom-0 bg-white rounded-t-3xl p-5 sm:p-6 shadow-2xl border-t border-gray-100 max-w-xl left-0 right-0 mx-auto"
+      >
+        <ConfirmedRide
+          pickup={pickup}
+          destination={destination}
+          fare={fare}
+          vehicleType={vehicleType}
+          createRide={createRide}
+          setConfirmRidePanel={setConfirmRidePanel}
+          setVehicleFound={setVehicleFound}
+        />
       </div>
 
-      {/* vehilce found Selection Panel */}
-      <div ref={vehicleFoundRef} className="fixed translate-y-full z-10 w-full bottom-0 bg-white p-6 shadow-lg">
-        <LookingForDriver pickup={pickup} destination={destination} fare={fare} vehicleType={vehicleType} createRide={createRide} setVehicleFound={setVehicleFound} />
+      {/* Looking For Driver Drawer */}
+      <div
+        ref={vehicleFoundRef}
+        style={{ transform: 'translateY(100%)' }}
+        className="fixed z-40 w-full bottom-0 bg-white rounded-t-3xl p-5 sm:p-6 shadow-2xl border-t border-gray-100 max-w-xl left-0 right-0 mx-auto"
+      >
+        <LookingForDriver
+          pickup={pickup}
+          destination={destination}
+          fare={fare}
+          vehicleType={vehicleType}
+          setVehicleFound={setVehicleFound}
+        />
       </div>
 
-      {/* waiting for driver Panel */}
-      <div ref={waitingForDriverRef} className="fixed translate-y-full z-10 w-full bottom-0 bg-white p-6 shadow-lg">
-        <WaitingForDriver ride={ride} setWaitingForDriver={setWaitingForDriver} />
+      {/* Waiting For Driver Drawer */}
+      <div
+        ref={waitingForDriverRef}
+        style={{ transform: 'translateY(100%)' }}
+        className="fixed z-40 w-full bottom-0 bg-white rounded-t-3xl p-5 sm:p-6 shadow-2xl border-t border-gray-100 max-w-xl left-0 right-0 mx-auto"
+      >
+        <WaitingForDriver
+          ride={ride}
+          setWaitingForDriver={setWaitingForDriver}
+        />
       </div>
     </div>
+  );
+};
 
-  )
-}
-export default Home
+export default Home;

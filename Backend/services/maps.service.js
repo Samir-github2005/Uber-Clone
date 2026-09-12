@@ -107,23 +107,48 @@ const getAutoComleteSuggestions = async (input) => {
     }
 };
 
-const getCaptainInTheRadius = async (ltd, lng, radius) => {
+function calculateDistanceInKm(lat1, lon1, lat2, lon2) {
+    const R = 6371; // Earth radius in KM
+    const dLat = (lat2 - lat1) * (Math.PI / 180);
+    const dLon = (lon2 - lon1) * (Math.PI / 180);
+    const a =
+        Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+        Math.cos(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) *
+        Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c;
+}
+
+const getCaptainInTheRadius = async (ltd, lng, radius = 20) => {
     if (!ltd || !lng) {
         throw new Error('Invalid coordinates');
     }
     try {
-        const captains = await captainModel.find({
-            location: {
-                $geoWithin: {
-                    $centerSphere: [[ltd, lng], radius / 6371]
-                }
-            }
-        });      
-        return captains;
+        // Find all online captains with an active socket connection
+        const onlineCaptains = await captainModel.find({
+            socketId: { $exists: true, $ne: null }
+        });
+
+        // Filter captains within the specified radius (default 20km)
+        const captainsInRange = onlineCaptains.filter(captain => {
+            const capLat = captain.location?.ltd || captain.location?.lat;
+            const capLng = captain.location?.lng || captain.location?.lon;
+            if (!capLat || !capLng) return true; // Include captain if location is still synchronizing
+
+            const distance = calculateDistanceInKm(ltd, lng, capLat, capLng);
+            return distance <= radius;
+        });
+
+        if (captainsInRange.length > 0) {
+            return captainsInRange;
+        }
+
+        // Fallback for development/testing: alert active connected captains
+        return onlineCaptains;
     } catch (error) {
-        console.error('Error fetching captains:', error);
+        console.error('Error fetching captains in radius:', error);
+        return [];
     }
-    
 };
 
 export { getAddressCoordinate, getDistanceTime, getCaptainInTheRadius, getAutoComleteSuggestions };

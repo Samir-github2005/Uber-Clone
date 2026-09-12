@@ -17,6 +17,7 @@ const registerUser = async (req, res, next) => {
         const hashPassword = await userModel.hashPassword(password);
         const user = await createUser({ firstName: fullName.firstName, lastName: fullName.lastName, email, password: hashPassword });
         const token = user.generateAuthToken();
+        res.cookie('token', token)
         res.status(200).json({ user, token });
     } catch (error) {
         console.error(error);

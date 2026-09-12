@@ -1,36 +1,38 @@
 import axios from 'axios';
-import React, { useEffect,useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { CaptainDataContext } from '../context/CaptainContext';
 
 const CaptainProtectWrapper = ({ children }) => {
-  const token = localStorage.getItem('token');
   const navigate = useNavigate();
-  const [isLoading, setIsLoading] = useState(true)
-  const {captain, setCaptain}=React.useContext(CaptainDataContext)
+  const [isLoading, setIsLoading] = useState(true);
+  const { captain, setCaptain } = React.useContext(CaptainDataContext);
+
   useEffect(() => {
+    const token = localStorage.getItem('captainToken');
     if (!token) {
       navigate('/captain-login');
+      return;
     }
-  }, [token]);
 
-  axios.get(`${import.meta.env.VITE_BASE_URL}/captains/profile`,{
-    headers:{
-      Authorization: `Bearer ${token}`
-    }
-  }).then(res =>{
-    if(res.status===200){
-        setCaptain(res.data.captain)
-        setIsLoading(false)
-    }
-  }).catch(err=>{
-    console.log(err)
-    localStorage.removeItem('token')
-    navigate('/captain-login')
-  })
+    axios.get(`${import.meta.env.VITE_BASE_URL}/captains/profile`, {
+      headers: {
+        Authorization: `Bearer ${token}`
+      }
+    }).then(res => {
+      if (res.status === 200) {
+        setCaptain(res.data.captain);
+        setIsLoading(false);
+      }
+    }).catch(err => {
+      console.log(err);
+      localStorage.removeItem('captainToken');
+      navigate('/captain-login');
+    });
+  }, [navigate, setCaptain]);
 
-  if(isLoading){
-    return <div>Loading...</div>
+  if (isLoading) {
+    return <div>Loading...</div>;
   }
 
   return (
